@@ -32,10 +32,11 @@ const CONFIG = {
   // Spørsmålet i skjemaet der folk velger hvem de er (må stå likt i skjemaet).
   roleQuestion: "Hvem er du?",
   // Gruppene. «match» er et ord som finnes i svaralternativet i skjemaet.
+  // «shape» er formen gruppen vises med: "circle", "square", "triangle", "diamond".
   groups: [
-    { label: "Tilskuer",    match: "tilskuer" },
-    { label: "Konsulenthus", match: "konsulent" },
-    { label: "Inhouse",      match: "inhouse" }
+    { label: "Tilskuer",     match: "tilskuer",  shape: "circle" },
+    { label: "Konsulenthus", match: "konsulent", shape: "square" },
+    { label: "Inhouse",      match: "inhouse",   shape: "triangle" }
   ],
 
   // Skalaen. Bruk «Lineær skala» 1–5 i Google Skjema.
@@ -100,7 +101,7 @@ const CONFIG = {
   .legend { display: flex; gap: 1.6em; align-items: center; }
   .legend-item { display: flex; align-items: center; gap: .55em; color: var(--text-secondary); white-space: nowrap; }
   .legend-item b { color: var(--text-primary); font-weight: 600; }
-  .swatch { width: .8em; height: .8em; border-radius: 50%; flex: none; }
+  .swatch { width: 1em; height: 1em; flex: none; overflow: visible; }
   .mini-qr { display: flex; align-items: center; gap: .8em; color: var(--text-muted); font-size: .8em; cursor: pointer; background: none; border: 0; padding: 0; }
   .mini-qr .qr { width: 4.2em; height: 4.2em; background: #fff; border-radius: 6px; padding: 3px; }
   .mini-qr .qr svg { width: 100%; height: 100%; display: block; }
@@ -138,7 +139,10 @@ const CONFIG = {
   .badge { font-size: .72em; padding: .25em .6em; border-radius: 99px; border: 1px solid var(--border); color: var(--text-secondary); white-space: nowrap; }
   .badge.hot { border-color: #e66767; color: #f3b0b0; }
   .badge.hot::before { content: "▲ "; font-size: .8em; }
-  .strip { width: 100%; height: 5.2em; display: block; }
+  .strip { width: 100%; height: auto; display: block; }
+  .d-dots { width: 100%; height: auto; display: block; overflow: visible; }
+  .d-dots text { font-family: var(--font-body); }
+  .d-row.dots { align-items: center; }
   .strip text { font-family: var(--font-body); }
 
   /* ---------- detail ---------- */
@@ -161,8 +165,11 @@ const CONFIG = {
   .scale-legend { display: flex; justify-content: center; gap: 1.4em; margin-top: 2.2em; color: var(--text-secondary); font-size: .9em; flex-wrap: wrap; }
   .scale-legend span { display: flex; align-items: center; gap: .45em; }
   .scale-legend i { width: 1em; height: .8em; border-radius: 2px; display: inline-block; }
-  .ends { display: grid; grid-template-columns: 11em 1fr 7em; gap: 1.2em; color: var(--text-muted); font-size: .85em; margin-bottom: .5em; }
+  .ends { display: grid; grid-template-columns: 11em 1fr 7em; gap: 1.2em; color: var(--text-muted); margin-bottom: .5em; }
+  .ends > div { font-size: .85em; }
   .ends div { display: flex; justify-content: space-between; }
+  .ends .ticks { position: relative; height: 1.3em; display: block; }
+  .ends .ticks span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
   .callout { margin-top: 2em; padding: 1em 1.3em; border-left: 3px solid #e66767; background: var(--surface-1); border-radius: 0 8px 8px 0; color: var(--text-secondary); font-size: 1.05em; max-width: 60em; }
   .callout b { color: var(--text-primary); }
   table.data { border-collapse: collapse; margin-top: 2em; font-size: .9em; }
@@ -250,6 +257,7 @@ const CONFIG = {
   <span class="sep"></span>
   <button id="sortBtn">Sorter: uenighet<kbd>S</kbd></button>
   <button id="hideBtn">Skjul resultater<kbd>H</kbd></button>
+  <button id="allBtn">Vis alle svar<kbd>A</kbd></button>
   <button id="tableBtn">Tabell<kbd>T</kbd></button>
   <div class="status">
     <span class="demo-tag" id="demoTag" hidden>DEMO</span>
@@ -264,6 +272,32 @@ const CONFIG = {
   "use strict";
   const C = CONFIG;
   const GROUP_COLORS = ["var(--g1)", "var(--g2)", "var(--g3)", "#c98500", "#d55181"];
+  const DEFAULT_SHAPES = ["circle", "square", "triangle", "diamond", "circle"];
+  const shapeOf = (gi) => (C.groups[gi] && C.groups[gi].shape) || DEFAULT_SHAPES[gi % DEFAULT_SHAPES.length];
+
+  // Draws a group's mark (colour + shape) centred on (cx, cy), roughly equal visual weight to a circle of radius r.
+  function mark(gi, cx, cy, r, extra = "") {
+    const fill = `fill="${GROUP_COLORS[gi]}"`;
+    const f = (n) => n.toFixed(2);
+    switch (shapeOf(gi)) {
+      case "square": {
+        const a = r * 1.75;
+        return `<rect x="${f(cx - a / 2)}" y="${f(cy - a / 2)}" width="${f(a)}" height="${f(a)}" rx="${f(r * 0.18)}" ${fill} ${extra}/>`;
+      }
+      case "triangle": {
+        const side = r * 2.35, h = side * 0.866;
+        const pts = [[cx, cy - h * 2 / 3], [cx + side / 2, cy + h / 3], [cx - side / 2, cy + h / 3]];
+        return `<polygon points="${pts.map(q => q.map(f).join(",")).join(" ")}" stroke-linejoin="round" ${fill} ${extra}/>`;
+      }
+      case "diamond": {
+        const d = r * 1.3;
+        return `<polygon points="${f(cx)},${f(cy - d)} ${f(cx + d)},${f(cy)} ${f(cx)},${f(cy + d)} ${f(cx - d)},${f(cy)}" ${fill} ${extra}/>`;
+      }
+      default:
+        return `<circle cx="${f(cx)}" cy="${f(cy)}" r="${f(r)}" ${fill} ${extra}/>`;
+    }
+  }
+  const swatch = (gi) => `<svg class="swatch" viewBox="-10 -10 20 20" aria-hidden="true">${mark(gi, 0, 0.6, 8)}</svg>`;
   const LEVELS = C.scale.max - C.scale.min + 1;
   const $ = (s) => document.querySelector(s);
   const fmt = (x, d = 1) => x == null || isNaN(x) ? "–" : x.toFixed(d).replace(".", ",");
@@ -279,6 +313,7 @@ const CONFIG = {
     sortByGap: true,
     hidden: false,
     showTable: false,
+    showAll: false,
     lastOk: null,
     error: null
   };
@@ -458,34 +493,62 @@ const CONFIG = {
   /* ---------- rendering ---------- */
   function renderLegend() {
     $("#legend").innerHTML = C.groups.map((g, gi) =>
-      `<div class="legend-item"><span class="swatch" style="background:${GROUP_COLORS[gi]}"></span>${g.label} <b>${groupCount(gi)}</b></div>`).join("");
+      `<div class="legend-item">${swatch(gi)}${g.label} <b>${groupCount(gi)}</b></div>`).join("");
     $("#bigCount").innerHTML = `<div><div class="n">${state.rows.length}</div><div class="l">svar totalt</div></div>` +
-      C.groups.map((g, gi) => `<div><div class="n">${groupCount(gi)}</div><div class="l"><span class="swatch" style="background:${GROUP_COLORS[gi]}"></span>${g.label}</div></div>`).join("");
+      C.groups.map((g, gi) => `<div><div class="n">${groupCount(gi)}</div><div class="l">${swatch(gi)}${g.label}</div></div>`).join("");
     $("#veilCount").textContent = `${state.rows.length} har svart så langt`;
   }
 
+  // Packs `count` dots around (cx, cy) in rows of at most `perRow`, centred on the value.
+  function packDots(count, cx, cy, perRow, step) {
+    const out = [], rows = Math.ceil(count / perRow);
+    for (let j = 0; j < count; j++) {
+      const row = Math.floor(j / perRow), col = j % perRow;
+      const inRow = row < rows - 1 ? perRow : count - row * perRow;
+      out.push([cx + (col - (inRow - 1) / 2) * step, cy + (row - (rows - 1) / 2) * step]);
+    }
+    return out;
+  }
+  const levelLabel = (k) => `${C.scale.labels[k] || ""} (${C.scale.min + k})`.trim();
+
   function strip(st) {
     // Dot strip: one lane per group on a shared scale axis.
-    const W = 600, padL = 14, padR = 14, laneH = 15, top = 10;
-    const H = top + laneH * C.groups.length + 22;
+    // Mean mode: one dot per group. «Alle svar» mode: one dot per answer + a tick for the mean.
+    const W = 600, padL = 40, padR = 40, top = 10, all = state.showAll;
     const x = (v) => padL + (v - C.scale.min) / (C.scale.max - C.scale.min) * (W - padL - padR);
-    let s = `<svg class="strip" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Gjennomsnitt per gruppe">`;
+    const r = 4.2, step = 2 * r + 2;
+    const perRow = Math.max(1, Math.floor((W - padL - padR) / (C.scale.max - C.scale.min) * 0.84 / step));
+    const laneHs = st.groups.map(g => all ? Math.max(20, Math.max(1, ...g.counts.map(c => Math.ceil(c / perRow))) * step + 8) : 18);
+    const laneTop = []; let acc = top;
+    laneHs.forEach(h => { laneTop.push(acc); acc += h; });
+    const bottom = acc, H = bottom + 22;
+    const cy = (gi) => laneTop[gi] + laneHs[gi] / 2;
+    let s = `<svg class="strip" viewBox="0 0 ${W} ${H}" role="img" aria-label="${all ? "Alle svar per gruppe" : "Gjennomsnitt per gruppe"}">`;
     for (let v = C.scale.min; v <= C.scale.max; v++) {
-      s += `<line x1="${x(v)}" x2="${x(v)}" y1="${top - 4}" y2="${top + laneH * C.groups.length}" stroke="var(--grid)" stroke-width="1"/>`;
+      s += `<line x1="${x(v)}" x2="${x(v)}" y1="${top - 4}" y2="${bottom}" stroke="var(--grid)" stroke-width="1"/>`;
     }
     const midV = (C.scale.min + C.scale.max) / 2;
-    s += `<line x1="${x(midV)}" x2="${x(midV)}" y1="${top - 6}" y2="${top + laneH * C.groups.length + 2}" stroke="var(--text-muted)" stroke-width="1" opacity=".7"/>`;
+    s += `<line x1="${x(midV)}" x2="${x(midV)}" y1="${top - 6}" y2="${bottom + 2}" stroke="var(--text-muted)" stroke-width="1" opacity=".7"/>`;
     st.groups.forEach((g, gi) => {
-      const y = top + laneH * gi + laneH / 2;
-      s += `<line x1="${x(C.scale.min)}" x2="${x(C.scale.max)}" y1="${y}" y2="${y}" stroke="var(--grid)" stroke-width="1"/>`;
+      if (all && gi > 0) s += `<line x1="${x(C.scale.min)}" x2="${x(C.scale.max)}" y1="${laneTop[gi]}" y2="${laneTop[gi]}" stroke="var(--grid)" stroke-width="1"/>`;
+      if (!all) s += `<line x1="${x(C.scale.min)}" x2="${x(C.scale.max)}" y1="${cy(gi)}" y2="${cy(gi)}" stroke="var(--grid)" stroke-width="1"/>`;
     });
     st.groups.forEach((g, gi) => {
       if (!g.n) return;
-      const y = top + laneH * gi + laneH / 2;
-      s += `<circle cx="${x(g.mean)}" cy="${y}" r="6.5" fill="${GROUP_COLORS[gi]}" stroke="var(--surface-1)" stroke-width="2"
-             data-tip="${C.groups[gi].label}|Snitt ${fmt(g.mean)} · ${g.n} svar" vector-effect="non-scaling-stroke"/>`;
+      if (all) {
+        g.counts.forEach((c, k) => {
+          packDots(c, x(C.scale.min + k), cy(gi), perRow, step).forEach(([dx, dy]) => {
+            s += mark(gi, dx, dy, r, `data-tip="${C.groups[gi].label}|${levelLabel(k)} · ${c} av ${g.n}"`);
+          });
+        });
+        const h = laneHs[gi] - 4;
+        s += `<rect x="${x(g.mean) - 2}" y="${cy(gi) - h / 2}" width="4" height="${h}" rx="2" fill="var(--text-primary)" stroke="var(--surface-1)" stroke-width="1.5"
+               data-tip="${C.groups[gi].label}|Snitt ${fmt(g.mean)} · ${g.n} svar"/>`;
+      } else {
+        s += mark(gi, x(g.mean), cy(gi), 7.5, `stroke="var(--surface-1)" stroke-width="2" data-tip="${C.groups[gi].label}|Snitt ${fmt(g.mean)} · ${g.n} svar"`);
+      }
     });
-    const yb = top + laneH * C.groups.length + 16;
+    const yb = bottom + 16;
     s += `<text x="${padL}" y="${yb}" fill="var(--text-muted)" font-size="11">${C.scale.labels[0]}</text>`;
     s += `<text x="${W - padR}" y="${yb}" fill="var(--text-muted)" font-size="11" text-anchor="end">${C.scale.labels[C.scale.labels.length - 1]}</text>`;
     return s + "</svg>";
@@ -494,7 +557,8 @@ const CONFIG = {
   function renderOverview() {
     const list = order();
     const maxGap = Math.max(0, ...state.stats.map(s => s.gap));
-    $("#ovHint").textContent = state.sortByGap ? "Sortert etter størst avstand mellom gruppene · klikk et utsagn for detaljer" : "I opprinnelig rekkefølge · klikk et utsagn for detaljer";
+    $("#ovHint").textContent = (state.showAll ? "Hvert merke er ett svar, hvit strek er snittet · " : "") +
+      (state.sortByGap ? "Sortert etter størst avstand mellom gruppene · klikk et utsagn for detaljer" : "I opprinnelig rekkefølge · klikk et utsagn for detaljer");
     $("#grid").innerHTML = list.map(st => {
       const hot = st.gap > 0 && st.gap === maxGap && st.gap >= 0.5;
       return `<button class="card" data-i="${st.i}">
@@ -506,6 +570,28 @@ const CONFIG = {
   }
 
   function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+  // Detail view, «Alle svar»: every answer as a dot in its group colour, stacked per scale step.
+  function dotRow(g, gi) {
+    const W = 1000, pad = 90, r = 7, step = 2 * r + 3;
+    const x = (v) => pad + (v - C.scale.min) / (C.scale.max - C.scale.min) * (W - 2 * pad);
+    const perRow = Math.max(1, Math.floor((W - 2 * pad) / (C.scale.max - C.scale.min) * 0.8 / step));
+    const rows = Math.max(1, ...g.counts.map(c => Math.ceil(c / perRow)));
+    const plotH = Math.max(2 * r + 10, rows * step + 8), H = plotH + 22, cy = plotH / 2;
+    let s = `<svg class="d-dots" viewBox="0 0 ${W} ${H}" role="img" aria-label="Alle svar fra ${esc(C.groups[gi].label)}">`;
+    for (let v = C.scale.min; v <= C.scale.max; v++) {
+      s += `<line x1="${x(v)}" x2="${x(v)}" y1="0" y2="${plotH}" stroke="var(--grid)" stroke-width="1"/>`;
+    }
+    g.counts.forEach((c, k) => {
+      packDots(c, x(C.scale.min + k), cy, perRow, step).forEach(([dx, dy]) => {
+        s += mark(gi, dx, dy, r, `data-tip="${C.groups[gi].label}|${levelLabel(k)} · ${c} av ${g.n}"`);
+      });
+      s += `<text x="${x(C.scale.min + k)}" y="${H - 4}" text-anchor="middle" font-size="15" fill="var(--text-muted)">${c}</text>`;
+    });
+    s += `<rect x="${x(g.mean) - 2.5}" y="0" width="5" height="${plotH}" rx="2.5" fill="var(--text-primary)" stroke="var(--surface-0)" stroke-width="2"
+           data-tip="${C.groups[gi].label}|Snitt ${fmt(g.mean)}"/>`;
+    return s + "</svg>";
+  }
 
   function renderDetail() {
     const st = state.stats[state.current];
@@ -523,8 +609,10 @@ const CONFIG = {
     const unit = 48 / maxSide; // % of bar width per percentage point
 
     const rows = st.groups.map((g, gi) => {
-      const label = `<div class="d-label"><span class="swatch" style="background:${GROUP_COLORS[gi]}"></span><div>${C.groups[gi].label}<small>${g.n} svar</small></div></div>`;
+      const label = `<div class="d-label">${swatch(gi)}<div>${C.groups[gi].label}<small>${g.n} svar</small></div></div>`;
       if (!g.n) return `<div class="d-row">${label}<div class="d-empty">Ingen svar ennå</div><div></div></div>`;
+      const meanCell = `<div class="d-mean">${fmt(g.mean)}<small>snitt (${C.scale.min}–${C.scale.max})</small></div>`;
+      if (state.showAll) return `<div class="d-row">${label}${dotRow(g, gi)}${meanCell}</div>`;
       let left = 50 - sides[gi][0] * unit;
       const segs = g.counts.map((c, k) => {
         const pct = c / g.n * 100, w = pct * unit;
@@ -549,9 +637,13 @@ const CONFIG = {
     $("#detail").innerHTML = `
       <div class="d-meta"><span>Utsagn ${st.i + 1} av ${C.statements.length}</span><span>Avstand mellom gruppene: ${fmt(st.gap)}</span></div>
       <h2 class="d-stmt">${esc(st.text)}</h2>
-      <div class="ends"><span></span><div><span>← ${C.scale.labels[0]}</span><span>${C.scale.labels[C.scale.labels.length - 1]} →</span></div><span></span></div>
+      ${state.showAll
+        ? `<div class="ends"><span></span><div class="ticks">${C.scale.labels.map((l, k) => `<span style="left:${9 + 82 * k / Math.max(1, LEVELS - 1)}%">${l}</span>`).join("")}</div><span></span></div>`
+        : `<div class="ends"><span></span><div><span>← ${C.scale.labels[0]}</span><span>${C.scale.labels[C.scale.labels.length - 1]} →</span></div><span></span></div>`}
       <div class="d-rows">${rows}</div>
-      <div class="scale-legend">${C.scale.labels.map((l, k) => `<span><i style="background:${SCALE_COLORS[k]}"></i>${l}</span>`).join("")}</div>
+      <div class="scale-legend">${state.showAll
+        ? `<span>${C.groups.map((_, gi) => swatch(gi)).join("")}Hvert merke = ett svar</span><span><i style="background:var(--text-primary);width:.3em;height:1.1em"></i>Snitt</span><span>Tallet under er antall svar på hvert trinn</span>`
+        : C.scale.labels.map((l, k) => `<span><i style="background:${SCALE_COLORS[k]}"></i>${l}</span>`).join("")}</div>
       ${callout}${table}`;
   }
 
@@ -566,6 +658,8 @@ const CONFIG = {
     $("#sortBtn").firstChild.textContent = state.sortByGap ? "Sorter: uenighet" : "Sorter: rekkefølge";
     $("#hideBtn").classList.toggle("on", state.hidden);
     $("#tableBtn").classList.toggle("on", state.showTable);
+    $("#allBtn").classList.toggle("on", state.showAll);
+    $("#allBtn").firstChild.textContent = state.showAll ? "Vis snitt" : "Vis alle svar";
     $("#tableBtn").hidden = state.view !== "detail";
     const t = state.lastOk ? state.lastOk.toLocaleTimeString("no-NO") : "–";
     $("#statusText").textContent = state.error ? state.error : `${state.rows.length} svar · oppdatert ${t}` + (state.missingCols ? ` · ${state.missingCols} utsagn ikke funnet i regnearket` : "");
@@ -606,6 +700,7 @@ const CONFIG = {
   $("#next").onclick = () => step(1);
   $("#sortBtn").onclick = () => { state.sortByGap = !state.sortByGap; render(); };
   $("#hideBtn").onclick = () => { state.hidden = !state.hidden; render(); };
+  $("#allBtn").onclick = () => { state.showAll = !state.showAll; render(); };
   $("#tableBtn").onclick = () => { state.showTable = !state.showTable; render(); };
   document.addEventListener("keydown", (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -616,6 +711,7 @@ const CONFIG = {
     else if (k === "o" || k === "escape") go("overview");
     else if (k === "s") { state.sortByGap = !state.sortByGap; render(); }
     else if (k === "h") { state.hidden = !state.hidden; render(); }
+    else if (k === "a") { state.showAll = !state.showAll; render(); }
     else if (k === "t") { state.showTable = !state.showTable; render(); }
     else if (k === "r") refresh();
     else if (k === "f") { (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => {}); }
