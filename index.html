@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Studentene spør – bransjen svarer · IxDA Bergen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script>
+/* =====================================================================
+   KONFIGURASJON – dette er den eneste delen dere trenger å endre.
+   Se README.md for steg-for-steg-oppsett.
+   ===================================================================== */
+const CONFIG = {
+  title: "Studentene spør – bransjen svarer",
+  subtitle: "IxDA Bergen",
+
+  // Lenken folk skal til når de scanner QR-koden (Google Skjema-lenken).
+  formUrl: "",
+  // Valgfri kort lenke som vises under QR-koden (f.eks. forms.gle/abc123).
+  shortUrl: "",
+
+  // Regnearket som skjemaet lagrer svar i. ID-en er den lange koden i lenken:
+  // https://docs.google.com/spreadsheets/d/  >>DENNE-DELEN<<  /edit
+  // Regnearket må deles som «Alle som har linken kan se».
+  sheetId: "",
+  // Navnet på fanen nederst i regnearket (norsk Google: «Skjemasvar 1»).
+  sheetName: "Skjemasvar 1",
+
+  // Spørsmålet i skjemaet der folk velger hvem de er (må stå likt i skjemaet).
+  roleQuestion: "Hvem er du?",
+  // Gruppene. «match» er et ord som finnes i svaralternativet i skjemaet.
+  groups: [
+    { label: "Tilskuere",    match: "tilskuer" },
+    { label: "Konsulenthus", match: "konsulent" },
+    { label: "Inhouse",      match: "inhouse" }
+  ],
+
+  // Skalaen. Bruk «Lineær skala» 1–5 i Google Skjema.
+  scale: { min: 1, max: 5, labels: ["Helt uenig", "Uenig", "Nøytral", "Enig", "Helt enig"] },
+
+  // Utsagnene – må stå likt (eller nesten likt) som spørsmålene i skjemaet.
+  statements: [
+    "Det er vanskeligere å få første jobb som UX-/tjenestedesigner nå enn for fem år siden.",
+    "En sterk portefølje betyr mer enn karakterer og utdanning.",
+    "Som nyutdannet lærer man mer i et konsulenthus enn i et inhouse-miljø.",
+    "AI kommer til å redusere behovet for juniordesignere.",
+    "Utdanningen forbereder studentene godt på arbeidslivet.",
+    "Det lønner seg å spesialisere seg tidlig fremfor å være generalist.",
+    "Det er arbeidsgiverens ansvar å lære opp nyutdannede.",
+    "Praksisplass eller sommerjobb er viktigere enn masteroppgaven."
+  ],
+
+  // Hvor ofte skjermen henter nye svar (sekunder).
+  refreshSeconds: 5
+};
+</script>
+<style>
+  :root {
+    color-scheme: dark;
+    --surface-0: #121211;
+    --surface-1: #1a1a19;
+    --surface-2: #242422;
+    --border: #34342f;
+    --grid: #2e2e2b;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --text-muted: #8f8e86;
+    --accent: #f0efec;
+    --g1: #3987e5;  /* Tilskuere – blå */
+    --g2: #d95926;  /* Konsulenthus – oransje */
+    --g3: #199e70;  /* Inhouse – aqua */
+    --font-display: "Space Grotesk", system-ui, sans-serif;
+    --font-body: "Inter", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--surface-0);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: clamp(14px, 1.05vw, 20px);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  button { font: inherit; color: inherit; }
+
+  /* ---------- header ---------- */
+  header {
+    display: flex; align-items: center; gap: 2em;
+    padding: 1.2em 2.2em 1em;
+    border-bottom: 1px solid var(--border);
+  }
+  .brand { flex: 1; min-width: 0; }
+  .brand .kicker { color: var(--text-muted); font-size: .8em; letter-spacing: .08em; text-transform: uppercase; }
+  .brand h1 { font-family: var(--font-display); font-weight: 700; font-size: 1.6em; margin: .1em 0 0; line-height: 1.1; }
+  .legend { display: flex; gap: 1.6em; align-items: center; }
+  .legend-item { display: flex; align-items: center; gap: .55em; color: var(--text-secondary); white-space: nowrap; }
+  .legend-item b { color: var(--text-primary); font-weight: 600; }
+  .swatch { width: .8em; height: .8em; border-radius: 50%; flex: none; }
+  .mini-qr { display: flex; align-items: center; gap: .8em; color: var(--text-muted); font-size: .8em; cursor: pointer; background: none; border: 0; padding: 0; }
+  .mini-qr .qr { width: 4.2em; height: 4.2em; background: #fff; border-radius: 6px; padding: 3px; }
+  .mini-qr .qr svg { width: 100%; height: 100%; display: block; }
+
+  main { flex: 1; min-height: 0; position: relative; }
+  .view { position: absolute; inset: 0; padding: 1.6em 2.2em; overflow: auto; display: none; }
+  .view.active { display: block; }
+
+  /* ---------- QR view ---------- */
+  #view-qr.active { display: flex; align-items: center; justify-content: center; gap: 5em; }
+  .qr-big { width: min(52vh, 36vw); aspect-ratio: 1; background: #fff; border-radius: 18px; padding: 18px; }
+  .qr-big svg { width: 100%; height: 100%; display: block; }
+  .qr-missing { color: #333; display: flex; align-items: center; justify-content: center; height: 100%; text-align: center; font-size: .9em; padding: 1em; }
+  .qr-text h2 { font-family: var(--font-display); font-size: 3em; line-height: 1.05; margin: 0 0 .4em; max-width: 12em; }
+  .qr-text p { color: var(--text-secondary); font-size: 1.25em; max-width: 26em; line-height: 1.45; margin: 0 0 1.2em; }
+  .qr-url { font-family: var(--font-display); font-size: 1.6em; color: var(--text-primary); margin-bottom: 1.2em; word-break: break-all; }
+  .big-count { display: flex; gap: 2.2em; margin-top: 1.4em; }
+  .big-count .n { font-family: var(--font-display); font-size: 3.2em; font-weight: 700; line-height: 1; }
+  .big-count .l { color: var(--text-muted); display: flex; align-items: center; gap: .45em; margin-top: .3em; }
+
+  /* ---------- overview ---------- */
+  .ov-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 1em; }
+  .ov-head h2 { font-family: var(--font-display); font-size: 1.35em; margin: 0; }
+  .ov-head .hint { color: var(--text-muted); font-size: .85em; }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1em 1.4em; }
+  .card {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px;
+    padding: 1em 1.2em .8em; cursor: pointer; text-align: left; width: 100%;
+    display: flex; flex-direction: column; gap: .5em; transition: border-color .15s;
+  }
+  .card:hover, .card:focus-visible { border-color: var(--text-muted); outline: none; }
+  .card .top { display: flex; gap: .8em; align-items: flex-start; }
+  .card .num { font-family: var(--font-display); color: var(--text-muted); font-size: .9em; padding-top: .1em; }
+  .card .stmt { flex: 1; font-weight: 500; line-height: 1.35; }
+  .badge { font-size: .72em; padding: .25em .6em; border-radius: 99px; border: 1px solid var(--border); color: var(--text-secondary); white-space: nowrap; }
+  .badge.hot { border-color: #e66767; color: #f3b0b0; }
+  .badge.hot::before { content: "▲ "; font-size: .8em; }
+  .strip { width: 100%; height: 5.2em; display: block; }
+  .strip text { font-family: var(--font-body); }
+
+  /* ---------- detail ---------- */
+  #view-detail .wrap { max-width: 1500px; margin: 0 auto; }
+  .d-meta { display: flex; justify-content: space-between; color: var(--text-muted); font-size: .9em; margin-bottom: .6em; }
+  .d-stmt { font-family: var(--font-display); font-size: 2.3em; font-weight: 500; line-height: 1.18; margin: 0 0 1.1em; max-width: 30em; }
+  .d-rows { display: flex; flex-direction: column; gap: 1.4em; }
+  .d-row { display: grid; grid-template-columns: 11em 1fr 7em; align-items: center; gap: 1.2em; }
+  .d-label { display: flex; align-items: center; gap: .6em; font-weight: 600; font-size: 1.15em; }
+  .d-label small { display: block; color: var(--text-muted); font-weight: 400; font-size: .75em; }
+  .d-bar { position: relative; height: 3.2em; }
+  .d-bar .center { position: absolute; left: 50%; top: -.5em; bottom: -.5em; width: 1px; background: var(--text-muted); opacity: .6; }
+  .d-seg { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: .95em; color: #fff; overflow: hidden; }
+  .d-seg + .d-seg { box-shadow: inset 2px 0 0 var(--surface-0); }
+  .d-seg:first-child { border-radius: 4px 0 0 4px; }
+  .d-seg.last { border-radius: 0 4px 4px 0; }
+  .d-mean { font-family: var(--font-display); font-size: 1.7em; font-weight: 700; text-align: right; }
+  .d-mean small { display: block; font-family: var(--font-body); font-size: .45em; color: var(--text-muted); font-weight: 400; }
+  .d-empty { color: var(--text-muted); font-style: italic; }
+  .scale-legend { display: flex; justify-content: center; gap: 1.4em; margin-top: 2.2em; color: var(--text-secondary); font-size: .9em; flex-wrap: wrap; }
+  .scale-legend span { display: flex; align-items: center; gap: .45em; }
+  .scale-legend i { width: 1em; height: .8em; border-radius: 2px; display: inline-block; }
+  .ends { display: grid; grid-template-columns: 11em 1fr 7em; gap: 1.2em; color: var(--text-muted); font-size: .85em; margin-bottom: .5em; }
+  .ends div { display: flex; justify-content: space-between; }
+  .callout { margin-top: 2em; padding: 1em 1.3em; border-left: 3px solid #e66767; background: var(--surface-1); border-radius: 0 8px 8px 0; color: var(--text-secondary); font-size: 1.05em; max-width: 60em; }
+  .callout b { color: var(--text-primary); }
+  table.data { border-collapse: collapse; margin-top: 2em; font-size: .9em; }
+  table.data th, table.data td { padding: .4em .9em; border-bottom: 1px solid var(--border); text-align: right; }
+  table.data th:first-child, table.data td:first-child { text-align: left; }
+  table.data th { color: var(--text-muted); font-weight: 500; }
+
+  /* ---------- hidden overlay ---------- */
+  .veil { position: absolute; inset: 0; background: var(--surface-0); display: none; align-items: center; justify-content: center; flex-direction: column; gap: .6em; z-index: 5; }
+  body.hidden-results .veil.on-results { display: flex; }
+  .veil h2 { font-family: var(--font-display); font-size: 2.4em; margin: 0; }
+  .veil p { color: var(--text-muted); margin: 0; font-size: 1.2em; }
+
+  /* ---------- footer ---------- */
+  footer {
+    display: flex; align-items: center; gap: .5em; padding: .6em 2.2em;
+    border-top: 1px solid var(--border); background: var(--surface-1); font-size: .85em;
+  }
+  footer button {
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+    padding: .45em .9em; cursor: pointer;
+  }
+  footer button:hover { border-color: var(--text-muted); }
+  footer button.on { background: var(--text-primary); color: var(--surface-0); }
+  footer .sep { width: 1px; height: 1.6em; background: var(--border); margin: 0 .4em; }
+  footer .status { margin-left: auto; color: var(--text-muted); display: flex; align-items: center; gap: .6em; }
+  .dot-live { width: .55em; height: .55em; border-radius: 50%; background: #0ca30c; }
+  .dot-live.err { background: #d03b3b; }
+  .demo-tag { color: #fab219; border: 1px solid #fab219; border-radius: 99px; padding: .1em .6em; font-size: .85em; }
+  kbd { font-family: inherit; font-size: .8em; color: var(--text-muted); border: 1px solid var(--border); border-radius: 4px; padding: 0 .3em; margin-left: .3em; }
+
+  /* ---------- tooltip ---------- */
+  #tip { position: fixed; pointer-events: none; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: .5em .7em; font-size: .85em; z-index: 10; display: none; box-shadow: 0 6px 20px rgba(0,0,0,.4); }
+  #tip b { display: block; margin-bottom: .15em; }
+  #tip span { color: var(--text-secondary); }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="kicker" id="kicker"></div>
+    <h1 id="title"></h1>
+  </div>
+  <div class="legend" id="legend"></div>
+  <button class="mini-qr" id="miniQr" title="Vis stor QR-kode">
+    <div class="qr" id="qrSmall"></div>
+  </button>
+</header>
+
+<main>
+  <section class="view" id="view-qr">
+    <div class="qr-big" id="qrBig"></div>
+    <div class="qr-text">
+      <h2>Scan og si din mening</h2>
+      <p>Velg om du er tilskuer, fra et konsulenthus eller fra et inhouse-miljø – og ta stilling til <span id="stmtCount"></span> påstander. Svarene er anonyme.</p>
+      <div class="qr-url" id="qrUrl"></div>
+      <div class="big-count" id="bigCount"></div>
+    </div>
+  </section>
+
+  <section class="view" id="view-overview">
+    <div class="ov-head">
+      <h2 id="ovTitle">Hvor er vi uenige?</h2>
+      <span class="hint" id="ovHint"></span>
+    </div>
+    <div class="grid" id="grid"></div>
+  </section>
+
+  <section class="view" id="view-detail">
+    <div class="wrap" id="detail"></div>
+  </section>
+
+  <div class="veil on-results" id="veil">
+    <h2>Resultatene kommer straks</h2>
+    <p id="veilCount"></p>
+  </div>
+</main>
+
+<footer>
+  <button data-go="qr">QR<kbd>Q</kbd></button>
+  <button data-go="overview">Oversikt<kbd>O</kbd></button>
+  <span class="sep"></span>
+  <button id="prev">← Forrige</button>
+  <button id="next">Neste →</button>
+  <span class="sep"></span>
+  <button id="sortBtn">Sorter: uenighet<kbd>S</kbd></button>
+  <button id="hideBtn">Skjul resultater<kbd>H</kbd></button>
+  <button id="tableBtn">Tabell<kbd>T</kbd></button>
+  <div class="status">
+    <span class="demo-tag" id="demoTag" hidden>DEMO</span>
+    <span class="dot-live" id="liveDot"></span>
+    <span id="statusText">Laster …</span>
+  </div>
+</footer>
+<div id="tip"></div>
+
+<script>
+(() => {
+  "use strict";
+  const C = CONFIG;
+  const GROUP_COLORS = ["var(--g1)", "var(--g2)", "var(--g3)", "#c98500", "#d55181"];
+  const LEVELS = C.scale.max - C.scale.min + 1;
+  const $ = (s) => document.querySelector(s);
+  const fmt = (x, d = 1) => x == null || isNaN(x) ? "–" : x.toFixed(d).replace(".", ",");
+
+  const params = new URLSearchParams(location.search);
+  const DEMO = params.has("demo") || !C.sheetId;
+
+  const state = {
+    rows: [],            // [{group: idx, answers: [value|null,...]}]
+    stats: [],           // per statement
+    view: "qr",
+    current: 0,
+    sortByGap: true,
+    hidden: false,
+    showTable: false,
+    lastOk: null,
+    error: null
+  };
+
+  /* ---------- colours for the scale (diverging red ↔ grey ↔ blue) ---------- */
+  function mix(a, b, t) {
+    const pa = a.match(/\w\w/g).map(h => parseInt(h, 16));
+    const pb = b.match(/\w\w/g).map(h => parseInt(h, 16));
+    return "#" + pa.map((v, i) => Math.round(v + (pb[i] - v) * t).toString(16).padStart(2, "0")).join("");
+  }
+  const NEG = "#d94f4f", MID = "#55544f", POS = "#2f7fdc";
+  const SCALE_COLORS = Array.from({ length: LEVELS }, (_, i) => {
+    const t = LEVELS === 1 ? 0.5 : i / (LEVELS - 1);
+    return t < 0.5 ? mix(NEG, MID, t / 0.5) : mix(MID, POS, (t - 0.5) / 0.5);
+  });
+
+  /* ---------- static header ---------- */
+  $("#kicker").textContent = C.subtitle;
+  $("#title").textContent = C.title;
+  $("#stmtCount").textContent = C.statements.length;
+  const shownUrl = C.shortUrl || C.formUrl.replace(/^https?:\/\//, "");
+  $("#qrUrl").textContent = shownUrl || "";
+
+  function renderQR() {
+    const url = C.formUrl || (DEMO ? "https://ixda.org/bergen" : "");
+    const targets = [$("#qrBig"), $("#qrSmall")];
+    if (!url || typeof qrcode === "undefined") {
+      targets[0].innerHTML = `<div class="qr-missing">${url ? "Kunne ikke laste QR-biblioteket" : "Legg inn <code>formUrl</code> i konfigurasjonen"}</div>`;
+      targets[1].parentElement.hidden = true;
+      return;
+    }
+    const qr = qrcode(0, "M");
+    qr.addData(url);
+    qr.make();
+    const svg = qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+    targets.forEach(t => t.innerHTML = svg);
+  }
+
+  /* ---------- CSV ---------- */
+  function parseCSV(text) {
+    const rows = []; let row = []; let field = ""; let q = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (q) {
+        if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else q = false; }
+        else field += c;
+      } else if (c === '"') q = true;
+      else if (c === ",") { row.push(field); field = ""; }
+      else if (c === "\n" || c === "\r") {
+        if (c === "\r" && text[i + 1] === "\n") i++;
+        row.push(field); rows.push(row); row = []; field = "";
+      } else field += c;
+    }
+    if (field !== "" || row.length) { row.push(field); rows.push(row); }
+    return rows.filter(r => r.some(v => v.trim() !== ""));
+  }
+
+  const norm = (s) => String(s).toLowerCase().normalize("NFKC").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+
+  function valueOf(raw) {
+    const s = String(raw).trim();
+    if (!s) return null;
+    const n = parseFloat(s.replace(",", "."));
+    if (!isNaN(n) && n >= C.scale.min && n <= C.scale.max) return Math.round(n);
+    const idx = C.scale.labels.findIndex(l => norm(l) === norm(s));
+    return idx >= 0 ? C.scale.min + idx : null;
+  }
+
+  function rowsFromCSV(text) { return rowsFromTable(parseCSV(text)); }
+
+  function rowsFromTable(table) {
+    if (table.length === 0) return [];
+    const header = table[0].map(norm);
+    const roleCol = header.findIndex(h => h.includes(norm(C.roleQuestion)));
+    if (roleCol < 0) throw new Error(`Fant ikke spørsmålet «${C.roleQuestion}» i regnearket`);
+    const stmtCols = C.statements.map(s => {
+      const ns = norm(s);
+      return header.findIndex(h => h && (h.includes(ns) || ns.includes(h)));
+    });
+    const missing = stmtCols.filter(c => c < 0).length;
+    state.missingCols = missing;
+    return table.slice(1).map(r => {
+      const role = norm(r[roleCol] || "");
+      const group = C.groups.findIndex(g => role.includes(norm(g.match)));
+      return { group, answers: stmtCols.map(c => c < 0 ? null : valueOf(r[c] || "")) };
+    }).filter(r => r.group >= 0);
+  }
+
+  // Primary: Google Visualization JSONP (works from any site without CORS setup).
+  let jsonpSeq = 0;
+  function fetchSheetJsonp() {
+    return new Promise((resolve, reject) => {
+      const cb = "__ixdaSheet" + (++jsonpSeq);
+      const s = document.createElement("script");
+      const timer = setTimeout(() => { done(); reject(new Error("Fikk ikke svar fra regnearket")); }, 10000);
+      function done() { clearTimeout(timer); delete window[cb]; s.remove(); }
+      window[cb] = (resp) => {
+        done();
+        if (!resp || resp.status === "error") {
+          const msg = resp && resp.errors && resp.errors[0] ? (resp.errors[0].detailed_message || resp.errors[0].message) : "ukjent feil";
+          return reject(new Error("Regnearket: " + msg));
+        }
+        const cols = resp.table.cols.map(c => c.label || "");
+        const rows = resp.table.rows.map(r => (r.c || []).map(c => c == null || c.v == null ? "" : String(c.v)));
+        resolve([cols, ...rows]);
+      };
+      s.onerror = () => { done(); reject(new Error("Kunne ikke nå regnearket – er det delt med «Alle som har linken»?")); };
+      s.src = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(C.sheetId)}/gviz/tq?tqx=out:json;responseHandler:${cb}&headers=1&sheet=${encodeURIComponent(C.sheetName)}&_=${Date.now()}`;
+      document.head.appendChild(s);
+    });
+  }
+
+  async function fetchSheet() {
+    try { return rowsFromTable(await fetchSheetJsonp()); }
+    catch (e) {
+      if (/Fant ikke spørsmålet/.test(e.message)) throw e;
+      try { return await fetchSheetCsv(); } catch (_) { throw e; }
+    }
+  }
+
+  async function fetchSheetCsv() {
+    const url = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(C.sheetId)}/gviz/tq?tqx=out:csv&headers=1&sheet=${encodeURIComponent(C.sheetName)}&_=${Date.now()}`;
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) throw new Error(`Regnearket svarte ${res.status}`);
+    const text = await res.text();
+    if (/^\s*</.test(text)) throw new Error("Regnearket er ikke delt som «Alle som har linken kan se»");
+    return rowsFromCSV(text);
+  }
+
+  /* ---------- demo data ---------- */
+  // Each statement: per-group lean (−2..+2). Purely invented for the preview.
+  const DEMO_LEAN = [
+    [1.6, 0.6, 0.9], [0.5, 1.4, 0.4], [-0.1, 1.3, -1.1], [0.9, -0.6, 0.3],
+    [-0.4, -0.9, -0.2], [-0.2, 0.8, -0.7], [0.9, 0.2, 0.4], [0.7, 0.3, 1.2]
+  ];
+  const demoRows = [];
+  function demoAdd(n) {
+    for (let k = 0; k < n; k++) {
+      const r = Math.random();
+      const group = r < 0.62 ? 0 : r < 0.82 ? 1 : 2;
+      const answers = C.statements.map((_, i) => {
+        const lean = (DEMO_LEAN[i % DEMO_LEAN.length] || [0, 0, 0])[group] || 0;
+        const mid = (C.scale.min + C.scale.max) / 2;
+        const half = (C.scale.max - C.scale.min) / 2;
+        const v = mid + lean * half / 2 + (Math.random() + Math.random() + Math.random() - 1.5) * half * 0.8;
+        return Math.max(C.scale.min, Math.min(C.scale.max, Math.round(v)));
+      });
+      demoRows.push({ group, answers });
+    }
+  }
+
+  /* ---------- statistics ---------- */
+  function computeStats() {
+    state.stats = C.statements.map((text, i) => {
+      const groups = C.groups.map((g, gi) => {
+        const vals = state.rows.filter(r => r.group === gi).map(r => r.answers[i]).filter(v => v != null);
+        const counts = Array(LEVELS).fill(0);
+        vals.forEach(v => counts[v - C.scale.min]++);
+        const n = vals.length;
+        const mean = n ? vals.reduce((a, b) => a + b, 0) / n : null;
+        return { n, mean, counts };
+      });
+      const means = groups.filter(g => g.n > 0).map(g => g.mean);
+      const gap = means.length >= 2 ? Math.max(...means) - Math.min(...means) : 0;
+      let hi = -1, lo = -1;
+      groups.forEach((g, gi) => {
+        if (!g.n) return;
+        if (hi < 0 || g.mean > groups[hi].mean) hi = gi;
+        if (lo < 0 || g.mean < groups[lo].mean) lo = gi;
+      });
+      return { i, text, groups, gap, hi, lo };
+    });
+  }
+  const order = () => state.sortByGap ? [...state.stats].sort((a, b) => b.gap - a.gap) : state.stats;
+  const groupCount = (gi) => state.rows.filter(r => r.group === gi).length;
+
+  /* ---------- rendering ---------- */
+  function renderLegend() {
+    $("#legend").innerHTML = C.groups.map((g, gi) =>
+      `<div class="legend-item"><span class="swatch" style="background:${GROUP_COLORS[gi]}"></span>${g.label} <b>${groupCount(gi)}</b></div>`).join("");
+    $("#bigCount").innerHTML = `<div><div class="n">${state.rows.length}</div><div class="l">svar totalt</div></div>` +
+      C.groups.map((g, gi) => `<div><div class="n">${groupCount(gi)}</div><div class="l"><span class="swatch" style="background:${GROUP_COLORS[gi]}"></span>${g.label}</div></div>`).join("");
+    $("#veilCount").textContent = `${state.rows.length} har svart så langt`;
+  }
+
+  function strip(st) {
+    // Dot strip: one lane per group on a shared scale axis.
+    const W = 600, padL = 14, padR = 14, laneH = 15, top = 10;
+    const H = top + laneH * C.groups.length + 22;
+    const x = (v) => padL + (v - C.scale.min) / (C.scale.max - C.scale.min) * (W - padL - padR);
+    let s = `<svg class="strip" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Gjennomsnitt per gruppe">`;
+    for (let v = C.scale.min; v <= C.scale.max; v++) {
+      s += `<line x1="${x(v)}" x2="${x(v)}" y1="${top - 4}" y2="${top + laneH * C.groups.length}" stroke="var(--grid)" stroke-width="1"/>`;
+    }
+    const midV = (C.scale.min + C.scale.max) / 2;
+    s += `<line x1="${x(midV)}" x2="${x(midV)}" y1="${top - 6}" y2="${top + laneH * C.groups.length + 2}" stroke="var(--text-muted)" stroke-width="1" opacity=".7"/>`;
+    st.groups.forEach((g, gi) => {
+      const y = top + laneH * gi + laneH / 2;
+      s += `<line x1="${x(C.scale.min)}" x2="${x(C.scale.max)}" y1="${y}" y2="${y}" stroke="var(--grid)" stroke-width="1"/>`;
+    });
+    st.groups.forEach((g, gi) => {
+      if (!g.n) return;
+      const y = top + laneH * gi + laneH / 2;
+      s += `<circle cx="${x(g.mean)}" cy="${y}" r="6.5" fill="${GROUP_COLORS[gi]}" stroke="var(--surface-1)" stroke-width="2"
+             data-tip="${C.groups[gi].label}|Snitt ${fmt(g.mean)} · ${g.n} svar" vector-effect="non-scaling-stroke"/>`;
+    });
+    const yb = top + laneH * C.groups.length + 16;
+    s += `<text x="${padL}" y="${yb}" fill="var(--text-muted)" font-size="11">${C.scale.labels[0]}</text>`;
+    s += `<text x="${W - padR}" y="${yb}" fill="var(--text-muted)" font-size="11" text-anchor="end">${C.scale.labels[C.scale.labels.length - 1]}</text>`;
+    return s + "</svg>";
+  }
+
+  function renderOverview() {
+    const list = order();
+    const maxGap = Math.max(0, ...state.stats.map(s => s.gap));
+    $("#ovHint").textContent = state.sortByGap ? "Sortert etter størst avstand mellom gruppene · klikk et utsagn for detaljer" : "I opprinnelig rekkefølge · klikk et utsagn for detaljer";
+    $("#grid").innerHTML = list.map(st => {
+      const hot = st.gap > 0 && st.gap === maxGap && st.gap >= 0.5;
+      return `<button class="card" data-i="${st.i}">
+        <div class="top"><span class="num">${st.i + 1}</span><span class="stmt">${esc(st.text)}</span>
+        <span class="badge ${hot ? "hot" : ""}">avstand ${fmt(st.gap)}</span></div>
+        ${strip(st)}
+      </button>`;
+    }).join("");
+  }
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+  function renderDetail() {
+    const st = state.stats[state.current];
+    if (!st) return;
+    // Diverging layout: neutral split around the centre line.
+    const hasMid = LEVELS % 2 === 1, midIdx = Math.floor(LEVELS / 2);
+    const sides = st.groups.map(g => {
+      if (!g.n) return [0, 0];
+      const p = g.counts.map(c => c / g.n * 100);
+      let neg = 0, pos = 0;
+      p.forEach((v, k) => { if (hasMid && k === midIdx) { neg += v / 2; pos += v / 2; } else if (k < LEVELS / 2) neg += v; else pos += v; });
+      return [neg, pos];
+    });
+    const maxSide = Math.max(50, ...sides.flat());
+    const unit = 48 / maxSide; // % of bar width per percentage point
+
+    const rows = st.groups.map((g, gi) => {
+      const label = `<div class="d-label"><span class="swatch" style="background:${GROUP_COLORS[gi]}"></span><div>${C.groups[gi].label}<small>${g.n} svar</small></div></div>`;
+      if (!g.n) return `<div class="d-row">${label}<div class="d-empty">Ingen svar ennå</div><div></div></div>`;
+      let left = 50 - sides[gi][0] * unit;
+      const segs = g.counts.map((c, k) => {
+        const pct = c / g.n * 100, w = pct * unit;
+        const html = w > 0 ? `<div class="d-seg" style="left:${left}%;width:${w}%;background:${SCALE_COLORS[k]}" data-tip="${C.groups[gi].label}|${C.scale.labels[k] || (C.scale.min + k)}: ${c} (${Math.round(pct)} %)">${pct >= 9 ? Math.round(pct) + "%" : ""}</div>` : "";
+        left += w; return html;
+      }).filter(Boolean);
+      if (segs.length) segs[segs.length - 1] = segs[segs.length - 1].replace('class="d-seg"', 'class="d-seg last"');
+      return `<div class="d-row">${label}<div class="d-bar"><div class="center"></div>${segs.join("")}</div>
+        <div class="d-mean">${fmt(g.mean)}<small>snitt (${C.scale.min}–${C.scale.max})</small></div></div>`;
+    }).join("");
+
+    let callout = "";
+    if (st.hi >= 0 && st.lo >= 0 && st.hi !== st.lo && st.gap >= 0.5) {
+      callout = `<div class="callout"><b>${C.groups[st.hi].label}</b> er mest enige (${fmt(st.groups[st.hi].mean)}), <b>${C.groups[st.lo].label}</b> minst (${fmt(st.groups[st.lo].mean)}). Hvorfor ser dere det så ulikt?</div>`;
+    } else if (state.rows.length) {
+      callout = `<div class="callout">Gruppene er ganske samstemte her. Er det noen i panelet som ser det annerledes?</div>`;
+    }
+
+    const table = state.showTable ? `<table class="data"><thead><tr><th>Gruppe</th>${C.scale.labels.map(l => `<th>${l}</th>`).join("")}<th>Snitt</th><th>n</th></tr></thead><tbody>
+      ${st.groups.map((g, gi) => `<tr><td>${C.groups[gi].label}</td>${g.counts.map(c => `<td>${c}</td>`).join("")}<td>${fmt(g.mean)}</td><td>${g.n}</td></tr>`).join("")}</tbody></table>` : "";
+
+    $("#detail").innerHTML = `
+      <div class="d-meta"><span>Utsagn ${st.i + 1} av ${C.statements.length}</span><span>Avstand mellom gruppene: ${fmt(st.gap)}</span></div>
+      <h2 class="d-stmt">${esc(st.text)}</h2>
+      <div class="ends"><span></span><div><span>← ${C.scale.labels[0]}</span><span>${C.scale.labels[C.scale.labels.length - 1]} →</span></div><span></span></div>
+      <div class="d-rows">${rows}</div>
+      <div class="scale-legend">${C.scale.labels.map((l, k) => `<span><i style="background:${SCALE_COLORS[k]}"></i>${l}</span>`).join("")}</div>
+      ${callout}${table}`;
+  }
+
+  function render() {
+    renderLegend();
+    document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === "view-" + state.view));
+    if (state.view === "overview") renderOverview();
+    if (state.view === "detail") renderDetail();
+    document.body.classList.toggle("hidden-results", state.hidden && state.view !== "qr");
+    $("#veil").style.display = state.hidden && state.view !== "qr" ? "flex" : "";
+    document.querySelectorAll("footer [data-go]").forEach(b => b.classList.toggle("on", b.dataset.go === state.view));
+    $("#sortBtn").firstChild.textContent = state.sortByGap ? "Sorter: uenighet" : "Sorter: rekkefølge";
+    $("#hideBtn").classList.toggle("on", state.hidden);
+    $("#tableBtn").classList.toggle("on", state.showTable);
+    $("#tableBtn").hidden = state.view !== "detail";
+    const t = state.lastOk ? state.lastOk.toLocaleTimeString("no-NO") : "–";
+    $("#statusText").textContent = state.error ? state.error : `${state.rows.length} svar · oppdatert ${t}` + (state.missingCols ? ` · ${state.missingCols} utsagn ikke funnet i regnearket` : "");
+    $("#liveDot").classList.toggle("err", !!state.error);
+    $("#demoTag").hidden = !DEMO;
+  }
+
+  /* ---------- navigation ---------- */
+  function go(view, i) {
+    state.view = view;
+    if (i != null) state.current = (i + C.statements.length) % C.statements.length;
+    const hash = view === "detail" ? "utsagn-" + (state.current + 1) : view === "overview" ? "oversikt" : "qr";
+    if (location.hash !== "#" + hash) history.replaceState(null, "", "#" + hash);
+    render();
+  }
+  function step(d) {
+    if (state.view !== "detail") { go("detail", d > 0 ? order()[0].i : order()[order().length - 1].i); return; }
+    const list = order().map(s => s.i);
+    const pos = list.indexOf(state.current);
+    go("detail", list[(pos + d + list.length) % list.length]);
+  }
+  function fromHash() {
+    const h = location.hash.slice(1);
+    const m = h.match(/^utsagn-(\d+)$/);
+    if (m) go("detail", parseInt(m[1], 10) - 1);
+    else if (h === "oversikt") go("overview");
+    else go("qr");
+  }
+
+  document.addEventListener("click", (e) => {
+    const card = e.target.closest(".card");
+    if (card) return go("detail", +card.dataset.i);
+    const b = e.target.closest("[data-go]");
+    if (b) return go(b.dataset.go);
+  });
+  $("#miniQr").onclick = () => go("qr");
+  $("#prev").onclick = () => step(-1);
+  $("#next").onclick = () => step(1);
+  $("#sortBtn").onclick = () => { state.sortByGap = !state.sortByGap; render(); };
+  $("#hideBtn").onclick = () => { state.hidden = !state.hidden; render(); };
+  $("#tableBtn").onclick = () => { state.showTable = !state.showTable; render(); };
+  document.addEventListener("keydown", (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if (k === "arrowright" || k === " " || k === "pagedown") { e.preventDefault(); step(1); }
+    else if (k === "arrowleft" || k === "pageup") { e.preventDefault(); step(-1); }
+    else if (k === "q") go("qr");
+    else if (k === "o" || k === "escape") go("overview");
+    else if (k === "s") { state.sortByGap = !state.sortByGap; render(); }
+    else if (k === "h") { state.hidden = !state.hidden; render(); }
+    else if (k === "t") { state.showTable = !state.showTable; render(); }
+    else if (k === "r") refresh();
+    else if (k === "f") { (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => {}); }
+  });
+  window.addEventListener("hashchange", fromHash);
+
+  /* tooltip */
+  const tip = $("#tip");
+  document.addEventListener("mousemove", (e) => {
+    const t = e.target.closest("[data-tip]");
+    if (!t) { tip.style.display = "none"; return; }
+    const [a, b] = t.dataset.tip.split("|");
+    tip.innerHTML = `<b>${esc(a)}</b><span>${esc(b)}</span>`;
+    tip.style.display = "block";
+    const r = tip.getBoundingClientRect();
+    tip.style.left = Math.min(e.clientX + 14, innerWidth - r.width - 8) + "px";
+    tip.style.top = Math.max(8, e.clientY - r.height - 12) + "px";
+  });
+
+  /* ---------- data loop ---------- */
+  let busy = false;
+  async function refresh() {
+    if (busy) return; busy = true;
+    try {
+      if (DEMO) {
+        if (!demoRows.length) demoAdd(38);
+        else if (demoRows.length < 160) demoAdd(Math.floor(Math.random() * 3));
+        state.rows = demoRows.slice();
+      } else {
+        state.rows = await fetchSheet();
+      }
+      state.error = null; state.lastOk = new Date();
+    } catch (err) {
+      state.error = "Feil: " + (err && err.message ? err.message : "kunne ikke hente svar") + " – prøver igjen";
+    } finally {
+      busy = false;
+      computeStats(); render();
+    }
+  }
+
+  renderQR();
+  computeStats();
+  fromHash();
+  refresh();
+  setInterval(refresh, Math.max(2, C.refreshSeconds) * 1000);
+})();
+</script>
+</body>
+</html>
