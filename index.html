@@ -20,7 +20,7 @@ const CONFIG = {
   // Lenken folk skal til når de scanner QR-koden (Google Skjema-lenken).
   formUrl: "https://docs.google.com/forms/d/e/1FAIpQLScgAer6rbLUIIv5NPM5VbgXUCQLxkRkb7WJzuHxUXHpaNEi_Q/viewform?usp=dialog",
   // Valgfri kort lenke som vises under QR-koden (f.eks. forms.gle/abc123).
-  shortUrl: "",
+  shortUrl: "https://forms.gle/tRd1iNW4KvLH4z1v5",
 
   // Regnearket som skjemaet lagrer svar i. ID-en er den lange koden i lenken:
   // https://docs.google.com/spreadsheets/d/  >>DENNE-DELEN<<  /edit
@@ -33,9 +33,10 @@ const CONFIG = {
   roleQuestion: "Hvem er du?",
   // Gruppene. «match» er et ord som finnes i svaralternativet i skjemaet.
   groups: [
-    { label: "Tilskuere",    match: "tilskuer" },
+    { label: "Student",    match: "Student" },
     { label: "Konsulenthus", match: "konsulent" },
     { label: "Inhouse",      match: "inhouse" }
+     { label: "Nyutdannet",      match: "nyutdannet" }
   ],
 
   // Skalaen. Bruk «Lineær skala» 1–5 i Google Skjema.
