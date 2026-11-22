@@ -374,6 +374,7 @@ const CONFIG = {
     return rows.filter(r => r.some(v => v.trim() !== ""));
   }
 
+  const compact = (s) => norm(s).replace(/\s+/g, "");
   const norm = (s) => String(s).toLowerCase().normalize("NFKC").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 
   function valueOf(raw) {
@@ -399,8 +400,9 @@ const CONFIG = {
     const missing = stmtCols.filter(c => c < 0).length;
     state.missingCols = missing;
     return table.slice(1).map(r => {
-      const role = norm(r[roleCol] || "");
-      const group = C.groups.findIndex(g => role.includes(norm(g.match)));
+      // Compare without spaces/punctuation, so "in-house", "in house" and "inhouse" all match.
+      const role = compact(r[roleCol] || "");
+      const group = C.groups.findIndex(g => role.includes(compact(g.match)));
       return { group, answers: stmtCols.map(c => c < 0 ? null : valueOf(r[c] || "")) };
     }).filter(r => r.group >= 0);
   }
