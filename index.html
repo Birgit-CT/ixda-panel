@@ -86,6 +86,7 @@ const CONFIG = {
     font-size: clamp(14px, 1.05vw, 20px);
     display: flex; flex-direction: column;
     overflow: hidden;
+    padding: 30px;  /* luft mot skjermkantene */
   }
   button { font: inherit; color: inherit; }
 
@@ -187,7 +188,7 @@ const CONFIG = {
   /* ---------- footer ---------- */
   footer {
     display: flex; align-items: center; gap: .5em; padding: .6em 2.2em;
-    border-top: 1px solid var(--border); background: var(--surface-1); font-size: .85em;
+    border: 1px solid var(--border); border-radius: 12px; background: var(--surface-1); font-size: .85em; margin-top: 16px;
   }
   footer button {
     background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
@@ -274,6 +275,8 @@ const CONFIG = {
   <button id="allBtn">Vis alle svar<kbd>A</kbd></button>
   <button id="pauseBtn">Pause<kbd>P</kbd></button>
   <button id="tableBtn">Tabell<kbd>T</kbd></button>
+  <span class="sep"></span>
+  <button id="fsBtn">⛶ Fullskjerm<kbd>F</kbd></button>
   <div class="status">
     <span class="demo-tag" id="demoTag" hidden>DEMO</span>
     <span class="dot-live" id="liveDot"></span>
@@ -757,9 +760,31 @@ const CONFIG = {
     else if (k === "t") { state.showTable = !state.showTable; render(); }
     else if (k === "r") refresh(true);
     else if (k === "p") togglePause();
-    else if (k === "f") { (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => {}); }
+    else if (k === "f") toggleFullscreen();
   });
   window.addEventListener("hashchange", fromHash);
+
+  /* fullscreen (with Safari prefix) */
+  const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
+  function toggleFullscreen() {
+    const d = document, el = d.documentElement;
+    try {
+      if (fsEl()) (d.exitFullscreen || d.webkitExitFullscreen).call(d);
+      else {
+        const req = el.requestFullscreen || el.webkitRequestFullscreen;
+        const r = req && req.call(el);
+        if (r && r.catch) r.catch(() => {});
+      }
+    } catch (_) { /* fullscreen not allowed here */ }
+  }
+  function syncFsBtn() {
+    const on = !!fsEl();
+    $("#fsBtn").firstChild.textContent = on ? "⛶ Avslutt fullskjerm" : "⛶ Fullskjerm";
+    $("#fsBtn").classList.toggle("on", on);
+  }
+  $("#fsBtn").onclick = toggleFullscreen;
+  document.addEventListener("fullscreenchange", syncFsBtn);
+  document.addEventListener("webkitfullscreenchange", syncFsBtn);
 
   /* tooltip */
   const tip = $("#tip");
