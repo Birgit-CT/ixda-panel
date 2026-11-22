@@ -29,12 +29,16 @@ const CONFIG = {
   // Navnet på fanen nederst i regnearket (norsk Google: «Skjemasvar 1»).
   sheetName: "Skjemasvar 1",
 
+  // VALGFRITT, for raskest mulig oppdatering: lenken til et Apps Script (se README, «Raskere oppdatering»).
+  // Når denne er fylt inn, hentes svarene direkte fra regnearket uten Googles mellomlagring.
+  scriptUrl: "",
+
   // Spørsmålet i skjemaet der folk velger hvem de er (må stå likt i skjemaet).
   roleQuestion: "Hvem er du?",
   // Gruppene. «match» er et ord som finnes i svaralternativet i skjemaet.
   // «shape» er formen gruppen vises med: "circle", "square", "triangle", "diamond".
   groups: [
-    { label: "Tilskuer",     match: "tilskuer",  shape: "circle" },
+    { label: "Deltaker",     match: "deltaker",  shape: "circle" },
     { label: "Konsulenthus", match: "konsulent", shape: "square" },
     { label: "Inhouse",      match: "inhouse",   shape: "triangle" }
   ],
@@ -44,18 +48,14 @@ const CONFIG = {
 
   // Utsagnene – må stå likt (eller nesten likt) som spørsmålene i skjemaet.
   statements: [
-    "Det er vanskeligere å få første jobb som UX-/tjenestedesigner nå enn for fem år siden.",
     "En sterk portefølje betyr mer enn karakterer og utdanning.",
-    "Som nyutdannet lærer man mer i et konsulenthus enn i et inhouse-miljø.",
     "AI kommer til å redusere behovet for juniordesignere.",
-    "Utdanningen forbereder studentene godt på arbeidslivet.",
     "Det lønner seg å spesialisere seg tidlig fremfor å være generalist.",
-    "Det er arbeidsgiverens ansvar å lære opp nyutdannede.",
     "Praksisplass eller sommerjobb er viktigere enn masteroppgaven."
   ],
 
   // Hvor ofte skjermen henter nye svar (sekunder).
-  refreshSeconds: 5
+  refreshSeconds: 3
 };
 </script>
 <style>
@@ -70,7 +70,7 @@ const CONFIG = {
     --text-secondary: #c3c2b7;
     --text-muted: #8f8e86;
     --accent: #f0efec;
-    --g1: #3987e5;  /* Tilskuere – blå */
+    --g1: #3987e5;  /* Deltaker – blå */
     --g2: #d95926;  /* Konsulenthus – oransje */
     --g3: #199e70;  /* Inhouse – aqua */
     --font-display: "Space Grotesk", system-ui, sans-serif;
@@ -198,6 +198,7 @@ const CONFIG = {
   footer .status { margin-left: auto; color: var(--text-muted); display: flex; align-items: center; gap: .6em; }
   .dot-live { width: .55em; height: .55em; border-radius: 50%; background: #0ca30c; }
   .dot-live.err { background: #d03b3b; }
+  .dot-live.paused { background: #fab219; }
   .demo-tag { color: #fab219; border: 1px solid #fab219; border-radius: 99px; padding: .1em .6em; font-size: .85em; }
   kbd { font-family: inherit; font-size: .8em; color: var(--text-muted); border: 1px solid var(--border); border-radius: 4px; padding: 0 .3em; margin-left: .3em; }
 
@@ -224,7 +225,7 @@ const CONFIG = {
     <div class="qr-big" id="qrBig"></div>
     <div class="qr-text">
       <h2>Scan og si din mening</h2>
-      <p>Velg om du er tilskuer, fra et konsulenthus eller fra et inhouse-miljø – og ta stilling til <span id="stmtCount"></span> påstander. Svarene er anonyme.</p>
+      <p>Velg om du er deltaker, fra et konsulenthus eller fra et inhouse-miljø – og ta stilling til <span id="stmtCount"></span> påstander. Svarene er anonyme.</p>
       <div class="qr-url" id="qrUrl"></div>
       <div class="big-count" id="bigCount"></div>
     </div>
@@ -258,6 +259,7 @@ const CONFIG = {
   <button id="sortBtn">Sorter: uenighet<kbd>S</kbd></button>
   <button id="hideBtn">Skjul resultater<kbd>H</kbd></button>
   <button id="allBtn">Vis alle svar<kbd>A</kbd></button>
+  <button id="pauseBtn">Pause<kbd>P</kbd></button>
   <button id="tableBtn">Tabell<kbd>T</kbd></button>
   <div class="status">
     <span class="demo-tag" id="demoTag" hidden>DEMO</span>
@@ -303,7 +305,7 @@ const CONFIG = {
   const fmt = (x, d = 1) => x == null || isNaN(x) ? "–" : x.toFixed(d).replace(".", ",");
 
   const params = new URLSearchParams(location.search);
-  const DEMO = params.has("demo") || !C.sheetId;
+  const DEMO = params.has("demo") || (!C.sheetId && !C.scriptUrl);
 
   const state = {
     rows: [],            // [{group: idx, answers: [value|null,...]}]
@@ -315,6 +317,7 @@ const CONFIG = {
     showTable: false,
     showAll: false,
     lastOk: null,
+    paused: false,
     error: null
   };
 
@@ -402,31 +405,50 @@ const CONFIG = {
     }).filter(r => r.group >= 0);
   }
 
-  // Primary: Google Visualization JSONP (works from any site without CORS setup).
+  // Loads a JSONP script; `makeUrl(cb)` builds the URL for the callback name.
   let jsonpSeq = 0;
-  function fetchSheetJsonp() {
+  function jsonp(makeUrl, onData) {
     return new Promise((resolve, reject) => {
       const cb = "__ixdaSheet" + (++jsonpSeq);
       const s = document.createElement("script");
       const timer = setTimeout(() => { done(); reject(new Error("Fikk ikke svar fra regnearket")); }, 10000);
       function done() { clearTimeout(timer); delete window[cb]; s.remove(); }
-      window[cb] = (resp) => {
-        done();
-        if (!resp || resp.status === "error") {
-          const msg = resp && resp.errors && resp.errors[0] ? (resp.errors[0].detailed_message || resp.errors[0].message) : "ukjent feil";
-          return reject(new Error("Regnearket: " + msg));
-        }
-        const cols = resp.table.cols.map(c => c.label || "");
-        const rows = resp.table.rows.map(r => (r.c || []).map(c => c == null || c.v == null ? "" : String(c.v)));
-        resolve([cols, ...rows]);
-      };
-      s.onerror = () => { done(); reject(new Error("Kunne ikke nå regnearket – er det delt med «Alle som har linken»?")); };
-      s.src = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(C.sheetId)}/gviz/tq?tqx=out:json;responseHandler:${cb}&headers=1&sheet=${encodeURIComponent(C.sheetName)}&_=${Date.now()}`;
+      window[cb] = (resp) => { done(); try { resolve(onData(resp)); } catch (e) { reject(e); } };
+      s.onerror = () => { done(); reject(new Error("Kunne ikke nå regnearket – sjekk delingen")); };
+      s.src = makeUrl(cb);
       document.head.appendChild(s);
     });
   }
 
+  // Fastest: a small Apps Script web app that reads the sheet directly (no Google cache).
+  function fetchFromScript() {
+    return jsonp(
+      (cb) => `${C.scriptUrl}${C.scriptUrl.includes("?") ? "&" : "?"}callback=${cb}&_=${Date.now()}`,
+      (resp) => {
+        if (!Array.isArray(resp)) throw new Error("Apps Script svarte ikke med en tabell");
+        return resp.map(r => r.map(v => v == null ? "" : String(v)));
+      });
+  }
+
+  // Default: Google Visualization JSONP (works from any site without CORS setup).
+  // Google caches identical queries, so each request asks a slightly different (but equivalent) query.
+  const cacheBust = () => `&tq=${encodeURIComponent("select * limit " + (1000000 + (Date.now() % 1000000)))}`;
+  function fetchSheetJsonp() {
+    return jsonp(
+      (cb) => `https://docs.google.com/spreadsheets/d/${encodeURIComponent(C.sheetId)}/gviz/tq?tqx=out:json;responseHandler:${cb}&headers=1&sheet=${encodeURIComponent(C.sheetName)}${cacheBust()}`,
+      (resp) => {
+        if (!resp || resp.status === "error") {
+          const msg = resp && resp.errors && resp.errors[0] ? (resp.errors[0].detailed_message || resp.errors[0].message) : "ukjent feil";
+          throw new Error("Regnearket: " + msg);
+        }
+        const cols = resp.table.cols.map(c => c.label || "");
+        const rows = resp.table.rows.map(r => (r.c || []).map(c => c == null || c.v == null ? "" : String(c.v)));
+        return [cols, ...rows];
+      });
+  }
+
   async function fetchSheet() {
+    if (C.scriptUrl) return rowsFromTable(await fetchFromScript());
     try { return rowsFromTable(await fetchSheetJsonp()); }
     catch (e) {
       if (/Fant ikke spørsmålet/.test(e.message)) throw e;
@@ -435,7 +457,7 @@ const CONFIG = {
   }
 
   async function fetchSheetCsv() {
-    const url = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(C.sheetId)}/gviz/tq?tqx=out:csv&headers=1&sheet=${encodeURIComponent(C.sheetName)}&_=${Date.now()}`;
+    const url = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(C.sheetId)}/gviz/tq?tqx=out:csv&headers=1&sheet=${encodeURIComponent(C.sheetName)}${cacheBust()}`;
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) throw new Error(`Regnearket svarte ${res.status}`);
     const text = await res.text();
@@ -658,12 +680,16 @@ const CONFIG = {
     $("#sortBtn").firstChild.textContent = state.sortByGap ? "Sorter: uenighet" : "Sorter: rekkefølge";
     $("#hideBtn").classList.toggle("on", state.hidden);
     $("#tableBtn").classList.toggle("on", state.showTable);
+    $("#pauseBtn").classList.toggle("on", state.paused);
+    $("#pauseBtn").firstChild.textContent = state.paused ? "Fortsett" : "Pause";
     $("#allBtn").classList.toggle("on", state.showAll);
     $("#allBtn").firstChild.textContent = state.showAll ? "Vis snitt" : "Vis alle svar";
     $("#tableBtn").hidden = state.view !== "detail";
     const t = state.lastOk ? state.lastOk.toLocaleTimeString("no-NO") : "–";
     $("#statusText").textContent = state.error ? state.error : `${state.rows.length} svar · oppdatert ${t}` + (state.missingCols ? ` · ${state.missingCols} utsagn ikke funnet i regnearket` : "");
+    if (state.paused && !state.error) $("#statusText").textContent = `PAUSET · ${state.rows.length} svar · trykk P for å fortsette`;
     $("#liveDot").classList.toggle("err", !!state.error);
+    $("#liveDot").classList.toggle("paused", state.paused);
     $("#demoTag").hidden = !DEMO;
   }
 
@@ -701,6 +727,8 @@ const CONFIG = {
   $("#sortBtn").onclick = () => { state.sortByGap = !state.sortByGap; render(); };
   $("#hideBtn").onclick = () => { state.hidden = !state.hidden; render(); };
   $("#allBtn").onclick = () => { state.showAll = !state.showAll; render(); };
+  function togglePause() { state.paused = !state.paused; if (!state.paused) refresh(true); render(); }
+  $("#pauseBtn").onclick = togglePause;
   $("#tableBtn").onclick = () => { state.showTable = !state.showTable; render(); };
   document.addEventListener("keydown", (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -713,7 +741,8 @@ const CONFIG = {
     else if (k === "h") { state.hidden = !state.hidden; render(); }
     else if (k === "a") { state.showAll = !state.showAll; render(); }
     else if (k === "t") { state.showTable = !state.showTable; render(); }
-    else if (k === "r") refresh();
+    else if (k === "r") refresh(true);
+    else if (k === "p") togglePause();
     else if (k === "f") { (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => {}); }
   });
   window.addEventListener("hashchange", fromHash);
@@ -733,8 +762,8 @@ const CONFIG = {
 
   /* ---------- data loop ---------- */
   let busy = false;
-  async function refresh() {
-    if (busy) return; busy = true;
+  async function refresh(force) {
+    if (busy || (state.paused && !force)) return; busy = true;
     try {
       if (DEMO) {
         if (!demoRows.length) demoAdd(38);
