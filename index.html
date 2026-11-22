@@ -61,15 +61,15 @@ const CONFIG = {
 <style>
   :root {
     color-scheme: dark;
-    --surface-0: #121211;
-    --surface-1: #1a1a19;
-    --surface-2: #242422;
-    --border: #34342f;
-    --grid: #2e2e2b;
-    --text-primary: #f0efec;
-    --text-secondary: #c3c2b7;
-    --text-muted: #8f8e86;
-    --accent: #f0efec;
+    --surface-0: #08141e;
+    --surface-1: #0f1d2c;
+    --surface-2: #17273a;
+    --border: #213249;
+    --grid: #1d2d40;
+    --text-primary: #eef1fb;
+    --text-secondary: #c2cad8;
+    --text-muted: #8a97ab;
+    --accent: #eef1fb;
     --g1: #3987e5;  /* Deltaker – blå */
     --g2: #d95926;  /* Konsulenthus – oransje */
     --g3: #199e70;  /* Inhouse – aqua */
@@ -203,7 +203,7 @@ const CONFIG = {
   kbd { font-family: inherit; font-size: .8em; color: var(--text-muted); border: 1px solid var(--border); border-radius: 4px; padding: 0 .3em; margin-left: .3em; }
 
   /* ---------- tooltip ---------- */
-  #tip { position: fixed; pointer-events: none; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: .5em .7em; font-size: .85em; z-index: 10; display: none; box-shadow: 0 6px 20px rgba(0,0,0,.4); }
+  #tip { position: fixed; pointer-events: none; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: .5em .7em; font-size: .85em; z-index: 10; display: none; box-shadow: 0 6px 20px rgba(0,8,20,.5); }
   #tip b { display: block; margin-bottom: .15em; }
   #tip span { color: var(--text-secondary); }
 </style>
@@ -327,7 +327,7 @@ const CONFIG = {
     const pb = b.match(/\w\w/g).map(h => parseInt(h, 16));
     return "#" + pa.map((v, i) => Math.round(v + (pb[i] - v) * t).toString(16).padStart(2, "0")).join("");
   }
-  const NEG = "#d94f4f", MID = "#55544f", POS = "#2f7fdc";
+  const NEG = "#d94f4f", MID = "#56606f", POS = "#2f7fdc";
   const SCALE_COLORS = Array.from({ length: LEVELS }, (_, i) => {
     const t = LEVELS === 1 ? 0.5 : i / (LEVELS - 1);
     return t < 0.5 ? mix(NEG, MID, t / 0.5) : mix(MID, POS, (t - 0.5) / 0.5);
