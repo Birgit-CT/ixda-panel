@@ -38,9 +38,10 @@ const CONFIG = {
   // Gruppene. «match» er et ord som finnes i svaralternativet i skjemaet.
   // «shape» er formen gruppen vises med: "circle", "square", "triangle", "diamond".
   groups: [
-    { label: "Deltaker",     match: "deltaker",  shape: "circle" },
+    { label: "Student / jobbsøker", match: "student",   shape: "circle" },
     { label: "Konsulenthus", match: "konsulent", shape: "square" },
-    { label: "Inhouse",      match: "inhouse",   shape: "triangle" }
+    { label: "Inhouse",      match: "inhouse",   shape: "triangle" },
+    { label: "Andre",        match: "andre",     shape: "diamond" }
   ],
 
   // Skalaen. Bruk «Lineær skala» 1–5 i Google Skjema.
@@ -51,8 +52,13 @@ const CONFIG = {
     "En sterk portefølje betyr mer enn karakterer og utdanning.",
     "AI kommer til å redusere behovet for juniordesignere.",
     "Det lønner seg å spesialisere seg tidlig fremfor å være generalist.",
-    "Praksisplass eller sommerjobb er viktigere enn masteroppgaven."
+    "Praksisplass eller sommerjobb er viktigere enn masteroppgaven.",
+    "Utdanningen forbereder studentene godt på arbeidslivet.",
+    "2027 er et godt tidspunkt å utdanne seg til designer."
   ],
+
+  // Fritekstspørsmålet for spørsmål fra salen. Skjermen finner kolonnen som inneholder dette ordet.
+  questionColumn: "spørsmål",
 
   // Hvor ofte skjermen henter nye svar (sekunder).
   refreshSeconds: 3
@@ -73,6 +79,7 @@ const CONFIG = {
     --g1: #3987e5;  /* Deltaker – blå */
     --g2: #d95926;  /* Konsulenthus – oransje */
     --g3: #199e70;  /* Inhouse – aqua */
+    --g4: #d6a000;  /* Andre – gul */
     --font-display: "Space Grotesk", system-ui, sans-serif;
     --font-body: "Inter", system-ui, sans-serif;
   }
@@ -179,6 +186,20 @@ const CONFIG = {
   table.data th:first-child, table.data td:first-child { text-align: left; }
   table.data th { color: var(--text-muted); font-weight: 500; }
 
+  /* ---------- questions ---------- */
+  .q-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1em 1.4em; }
+  .q-card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 1.1em 1.3em; display: flex; flex-direction: column; gap: .8em; }
+  .q-card .q-text { font-family: var(--font-display); font-size: 1.45em; font-weight: 500; line-height: 1.25; overflow-wrap: anywhere; }
+  .q-card .q-foot { display: flex; align-items: center; gap: .6em; color: var(--text-muted); font-size: .85em; }
+  .q-card .q-foot .who { display: flex; align-items: center; gap: .45em; margin-right: auto; }
+  .q-card button { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: .3em .8em; cursor: pointer; font-size: .95em; }
+  .q-card button:hover { border-color: var(--text-muted); }
+  .q-card.done { opacity: .45; }
+  .q-card.done .q-text { text-decoration: line-through; text-decoration-thickness: 1px; }
+  .q-card.hidden-q { opacity: .35; border-style: dashed; }
+  .q-empty { color: var(--text-muted); font-size: 1.2em; padding: 2em 0; }
+  .linkbtn { background: none; border: 0; color: var(--text-muted); text-decoration: underline; cursor: pointer; padding: 0; font-size: 1em; }
+
   /* ---------- hidden overlay ---------- */
   .veil { position: absolute; inset: 0; background: var(--surface-0); display: none; align-items: center; justify-content: center; flex-direction: column; gap: .6em; z-index: 5; }
   body.hidden-results .veil.on-results { display: flex; }
@@ -203,6 +224,14 @@ const CONFIG = {
   .dot-live.paused { background: #fab219; }
   .demo-tag { color: #fab219; border: 1px solid #fab219; border-radius: 99px; padding: .1em .6em; font-size: .85em; }
   kbd { font-family: inherit; font-size: .8em; color: var(--text-muted); border: 1px solid var(--border); border-radius: 4px; padding: 0 .3em; margin-left: .3em; }
+
+  /* ---------- fit many buttons and four groups on one line ---------- */
+  footer button { white-space: nowrap; padding: .45em .75em; }
+  footer .status { white-space: nowrap; min-width: 0; overflow: hidden; }
+  footer .status #statusText { overflow: hidden; text-overflow: ellipsis; }
+  .brand h1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .legend { gap: 1.2em; }
+  @media (max-width: 1800px) { footer kbd { display: none; } }
 
   /* ---------- tooltip ---------- */
   #tip { position: fixed; pointer-events: none; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: .5em .7em; font-size: .85em; z-index: 10; display: none; box-shadow: 0 6px 20px rgba(0,8,20,.5); }
@@ -239,7 +268,7 @@ const CONFIG = {
     <div class="qr-big" id="qrBig"></div>
     <div class="qr-text">
       <h2>Scan og si din mening</h2>
-      <p>Velg om du er deltaker, fra et konsulenthus eller fra et inhouse-miljø – og ta stilling til <span id="stmtCount"></span> påstander. Svarene er anonyme.</p>
+      <p>Velg hvem du er og ta stilling til <span id="stmtCount"></span> påstander. Har du et spørsmål til panelet, kan du skrive det til slutt. Svarene er anonyme.</p>
       <div class="qr-url" id="qrUrl"></div>
       <div class="big-count" id="bigCount"></div>
     </div>
@@ -251,6 +280,14 @@ const CONFIG = {
       <span class="hint" id="ovHint"></span>
     </div>
     <div class="grid" id="grid"></div>
+  </section>
+
+  <section class="view" id="view-questions">
+    <div class="ov-head">
+      <h2>Spørsmål fra salen</h2>
+      <span class="hint" id="qHint"></span>
+    </div>
+    <div class="q-list" id="qList"></div>
   </section>
 
   <section class="view" id="view-detail">
@@ -266,6 +303,7 @@ const CONFIG = {
 <footer>
   <button data-go="qr">QR<kbd>Q</kbd></button>
   <button data-go="overview">Oversikt<kbd>O</kbd></button>
+  <button data-go="questions">Spørsmål <span id="qCount"></span><kbd>?</kbd></button>
   <span class="sep"></span>
   <button id="prev">← Forrige</button>
   <button id="next">Neste →</button>
@@ -289,7 +327,7 @@ const CONFIG = {
 (() => {
   "use strict";
   const C = CONFIG;
-  const GROUP_COLORS = ["var(--g1)", "var(--g2)", "var(--g3)", "#c98500", "#d55181"];
+  const GROUP_COLORS = ["var(--g1)", "var(--g2)", "var(--g3)", "var(--g4)", "#d55181"];
   const DEFAULT_SHAPES = ["circle", "square", "triangle", "diamond", "circle"];
   const shapeOf = (gi) => (C.groups[gi] && C.groups[gi].shape) || DEFAULT_SHAPES[gi % DEFAULT_SHAPES.length];
 
@@ -334,6 +372,8 @@ const CONFIG = {
     showAll: false,
     lastOk: null,
     paused: false,
+    questions: [],
+    showHiddenQ: false,
     error: null
   };
 
@@ -403,6 +443,8 @@ const CONFIG = {
 
   function rowsFromCSV(text) { return rowsFromTable(parseCSV(text)); }
 
+  const lastIndex = (arr, fn) => { for (let i = arr.length - 1; i >= 0; i--) if (fn(arr[i])) return i; return -1; };
+
   function rowsFromTable(table) {
     if (table.length === 0) return [];
     const header = table[0].map(norm);
@@ -410,16 +452,25 @@ const CONFIG = {
     if (roleCol < 0) throw new Error(`Fant ikke spørsmålet «${C.roleQuestion}» i regnearket`);
     const stmtCols = C.statements.map(s => {
       const ns = norm(s);
-      return header.findIndex(h => h && (h.includes(ns) || ns.includes(h)));
+      // Use the LAST matching column: if a question is deleted and added again, Google keeps the old column first.
+      return lastIndex(header, h => h && (h.includes(ns) || ns.includes(h)));
     });
     const missing = stmtCols.filter(c => c < 0).length;
     state.missingCols = missing;
-    return table.slice(1).map(r => {
+    const qKey = norm(C.questionColumn || "");
+    const qCol = qKey ? lastIndex(header, h => h.includes(qKey)) : -1;
+    const all = table.slice(1).map(r => {
       // Compare without spaces/punctuation, so "in-house", "in house" and "inhouse" all match.
       const role = compact(r[roleCol] || "");
       const group = C.groups.findIndex(g => role.includes(compact(g.match)));
-      return { group, answers: stmtCols.map(c => c < 0 ? null : valueOf(r[c] || "")) };
-    }).filter(r => r.group >= 0);
+      return {
+        group, time: String(r[0] || ""),
+        question: qCol >= 0 ? String(r[qCol] || "").trim() : "",
+        answers: stmtCols.map(c => c < 0 ? null : valueOf(r[c] || ""))
+      };
+    });
+    setQuestions(all);
+    return all.filter(r => r.group >= 0);
   }
 
   // Loads a JSONP script; `makeUrl(cb)` builds the URL for the callback name.
@@ -492,7 +543,7 @@ const CONFIG = {
   function demoAdd(n) {
     for (let k = 0; k < n; k++) {
       const r = Math.random();
-      const group = r < 0.62 ? 0 : r < 0.82 ? 1 : 2;
+      const group = r < 0.55 ? 0 : r < 0.75 ? 1 : r < 0.9 ? 2 : 3;
       const answers = C.statements.map((_, i) => {
         const lean = (DEMO_LEAN[i % DEMO_LEAN.length] || [0, 0, 0])[group] || 0;
         const mid = (C.scale.min + C.scale.max) / 2;
@@ -500,8 +551,28 @@ const CONFIG = {
         const v = mid + lean * half / 2 + (Math.random() + Math.random() + Math.random() - 1.5) * half * 0.8;
         return Math.max(C.scale.min, Math.min(C.scale.max, Math.round(v)));
       });
-      demoRows.push({ group, answers });
+      const question = Math.random() < 0.18 ? DEMO_Q[demoRows.length % DEMO_Q.length] : "";
+      demoRows.push({ group, answers, question, time: "demo-" + demoRows.length });
     }
+  }
+  const DEMO_Q = [
+    "Hva ser dere etter i en portefølje fra en nyutdannet?",
+    "Hvor viktig er det å kunne kode som designer i dag?",
+    "Tar dere inn sommerstudenter, og når bør man søke?",
+    "Hvordan bruker dere AI i designprosessen allerede nå?",
+    "Er det lettere å få jobb i offentlig sektor enn i privat?",
+    "Hva er den største forskjellen på å jobbe i konsulenthus og inhouse?"
+  ];
+
+  /* ---------- questions from the audience ---------- */
+  // Status per question (done / hidden) is kept in this browser so a reload doesn't lose it.
+  const Q_KEY = "ixda-q-status-" + (C.sheetId || C.scriptUrl || "demo");
+  let qStatus = {};
+  try { qStatus = JSON.parse(localStorage.getItem(Q_KEY) || "{}"); } catch (_) {}
+  const saveQ = () => { try { localStorage.setItem(Q_KEY, JSON.stringify(qStatus)); } catch (_) {} };
+  const qId = (q) => q.time + "|" + q.text;
+  function setQuestions(rows) {
+    state.questions = rows.filter(r => r.question).map(r => ({ text: r.question, group: r.group, time: r.time }));
   }
 
   /* ---------- statistics ---------- */
@@ -686,13 +757,41 @@ const CONFIG = {
       ${callout}${table}`;
   }
 
+  function renderQuestions() {
+    const open = [], done = [], hidden = [];
+    state.questions.forEach(q => {
+      const st = qStatus[qId(q)];
+      (st === "hidden" ? hidden : st === "done" ? done : open).push(q);
+    });
+    const list = [...open, ...done, ...(state.showHiddenQ ? hidden : [])];
+    $("#qHint").innerHTML = `${open.length} ubesvart · ${done.length} tatt` +
+      (hidden.length ? ` · <button class="linkbtn" id="qShowHidden">${state.showHiddenQ ? "skjul" : "vis"} ${hidden.length} skjult${hidden.length > 1 ? "e" : ""}</button>` : "");
+    if (!list.length) {
+      $("#qList").innerHTML = `<div class="q-empty">Ingen spørsmål ennå. Spørsmål som skrives i skjemaet dukker opp her.</div>`;
+      return;
+    }
+    $("#qList").innerHTML = list.map(q => {
+      const id = qId(q), st = qStatus[id];
+      const who = q.group >= 0 ? `${swatch(q.group)}${esc(C.groups[q.group].label)}` : "";
+      return `<div class="q-card ${st === "done" ? "done" : ""} ${st === "hidden" ? "hidden-q" : ""}">
+        <div class="q-text">${esc(q.text)}</div>
+        <div class="q-foot"><span class="who">${who}</span>
+          <button data-q="${esc(id)}" data-act="done">${st === "done" ? "Angre" : "Tatt ✓"}</button>
+          <button data-q="${esc(id)}" data-act="hidden">${st === "hidden" ? "Vis igjen" : "Skjul"}</button>
+        </div></div>`;
+    }).join("");
+  }
+
   function render() {
     renderLegend();
     document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === "view-" + state.view));
     if (state.view === "overview") renderOverview();
     if (state.view === "detail") renderDetail();
-    document.body.classList.toggle("hidden-results", state.hidden && state.view !== "qr");
-    $("#veil").style.display = state.hidden && state.view !== "qr" ? "flex" : "";
+    if (state.view === "questions") renderQuestions();
+    const openQ = state.questions.filter(q => !qStatus[qId(q)]).length;
+    $("#qCount").textContent = openQ ? `(${openQ})` : "";
+    document.body.classList.toggle("hidden-results", state.hidden && state.view !== "qr" && state.view !== "questions");
+    $("#veil").style.display = state.hidden && state.view !== "qr" && state.view !== "questions" ? "flex" : "";
     document.querySelectorAll("footer [data-go]").forEach(b => b.classList.toggle("on", b.dataset.go === state.view));
     $("#sortBtn").firstChild.textContent = state.sortByGap ? "Sorter: uenighet" : "Sorter: rekkefølge";
     $("#hideBtn").classList.toggle("on", state.hidden);
@@ -714,7 +813,7 @@ const CONFIG = {
   function go(view, i) {
     state.view = view;
     if (i != null) state.current = (i + C.statements.length) % C.statements.length;
-    const hash = view === "detail" ? "utsagn-" + (state.current + 1) : view === "overview" ? "oversikt" : "qr";
+    const hash = view === "detail" ? "utsagn-" + (state.current + 1) : view === "overview" ? "oversikt" : view === "questions" ? "sporsmal" : "qr";
     if (location.hash !== "#" + hash) history.replaceState(null, "", "#" + hash);
     render();
   }
@@ -729,12 +828,20 @@ const CONFIG = {
     const m = h.match(/^utsagn-(\d+)$/);
     if (m) go("detail", parseInt(m[1], 10) - 1);
     else if (h === "oversikt") go("overview");
+    else if (h === "sporsmal") go("questions");
     else go("qr");
   }
 
   document.addEventListener("click", (e) => {
     const card = e.target.closest(".card");
     if (card) return go("detail", +card.dataset.i);
+    const qb = e.target.closest("[data-q]");
+    if (qb) {
+      const id = qb.dataset.q, act = qb.dataset.act;
+      if (qStatus[id] === act) delete qStatus[id]; else qStatus[id] = act;
+      saveQ(); return render();
+    }
+    if (e.target.id === "qShowHidden") { state.showHiddenQ = !state.showHiddenQ; return render(); }
     const b = e.target.closest("[data-go]");
     if (b) return go(b.dataset.go);
   });
@@ -749,6 +856,7 @@ const CONFIG = {
   $("#tableBtn").onclick = () => { state.showTable = !state.showTable; render(); };
   document.addEventListener("keydown", (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === "?" || e.key === "+") { go("questions"); return; }
     const k = e.key.toLowerCase();
     if (k === "arrowright" || k === " " || k === "pagedown") { e.preventDefault(); step(1); }
     else if (k === "arrowleft" || k === "pageup") { e.preventDefault(); step(-1); }
@@ -807,6 +915,7 @@ const CONFIG = {
       if (DEMO) {
         if (!demoRows.length) demoAdd(38);
         else if (demoRows.length < 160) demoAdd(Math.floor(Math.random() * 3));
+        setQuestions(demoRows);
         state.rows = demoRows.slice();
       } else {
         state.rows = await fetchSheet();
