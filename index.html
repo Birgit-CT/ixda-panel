@@ -126,7 +126,9 @@ const CONFIG = {
   .qr-missing { color: #333; display: flex; align-items: center; justify-content: center; height: 100%; text-align: center; font-size: .9em; padding: 1em; }
   .qr-text h2 { font-family: var(--font-display); font-size: 3em; line-height: 1.05; margin: 0 0 .4em; max-width: 12em; }
   .qr-text p { color: var(--text-secondary); font-size: 1.25em; max-width: 26em; line-height: 1.45; margin: 0 0 1.2em; }
-  .qr-url { font-family: var(--font-display); font-size: 1.6em; color: var(--text-primary); margin-bottom: 1.2em; word-break: break-all; }
+  .qr-url { display: inline-block; font-family: var(--font-display); font-size: 1.6em; color: var(--text-primary); margin-bottom: 1.2em; word-break: break-all; text-decoration: underline; text-decoration-color: var(--text-muted); text-underline-offset: .2em; }
+  .qr-url:hover { text-decoration-color: var(--text-primary); }
+  a.qr-big { display: block; }
   .big-count { display: flex; gap: 2.2em; margin-top: 1.4em; }
   .big-count .n { font-family: var(--font-display); font-size: 3.2em; font-weight: 700; line-height: 1; }
   .big-count .l { color: var(--text-muted); display: flex; align-items: center; gap: .45em; margin-top: .3em; }
@@ -233,6 +235,52 @@ const CONFIG = {
   .legend { gap: 1.2em; }
   @media (max-width: 1800px) { footer kbd { display: none; } }
 
+  /* ---------- smaller screens ---------- */
+  @media (max-width: 1300px) {
+    footer { flex-wrap: wrap; row-gap: .5em; }
+    footer .status { margin-left: auto; }
+    header { flex-wrap: wrap; row-gap: .8em; }
+    .brand h1 { white-space: normal; }
+    .legend { order: 3; flex-basis: 100%; flex-wrap: wrap; }
+  }
+  @media (max-width: 900px) {
+    html, body { height: auto; min-height: 100%; }
+    body { overflow: auto; padding: 14px; font-size: 15px; }
+    header { gap: .8em 1.2em; padding: .4em 0 1em; }
+    .logo { height: 2.4em; }
+    .brand { flex-basis: 100%; order: 2; padding-left: 0; border-left: 0; }
+    .brand h1 { font-size: 1.35em; }
+    .legend { order: 3; flex-wrap: wrap; gap: .5em 1em; font-size: .9em; }
+    .mini-qr { margin-left: auto; }
+    main { flex: none; }
+    .view { position: static; padding: 1.2em 0; overflow: visible; }
+    #view-qr.active { flex-direction: column; gap: 1.6em; text-align: center; }
+    .qr-big { width: min(72vw, 340px); padding: 12px; }
+    .qr-text h2 { font-size: 2em; max-width: none; }
+    .qr-text p { font-size: 1.05em; margin-left: auto; margin-right: auto; }
+    .qr-url { font-size: 1.2em; }
+    .big-count { justify-content: center; flex-wrap: wrap; gap: 1em 1.6em; }
+    .big-count .n { font-size: 2.2em; }
+    .ov-head { flex-direction: column; gap: .3em; }
+    .grid, .q-list { grid-template-columns: 1fr; }
+    .d-meta { flex-direction: column; gap: .2em; }
+    .d-stmt { font-size: 1.5em; margin-bottom: .8em; }
+    .ends { grid-template-columns: 1fr; }
+    .ends > span { display: none; }
+    .d-row { grid-template-columns: 1fr auto; gap: .4em 1em; }
+    .d-row .d-label { grid-column: 1; grid-row: 1; }
+    .d-row .d-mean { grid-column: 2; grid-row: 1; font-size: 1.3em; }
+    .d-row .d-bar, .d-row .d-dots, .d-row .d-empty { grid-column: 1 / -1; grid-row: 2; }
+    .d-bar { height: 2.4em; }
+    .scale-legend { gap: .6em 1em; }
+    .callout { font-size: 1em; }
+    table.data { font-size: .8em; display: block; overflow-x: auto; }
+    .veil { position: fixed; }
+    footer { position: sticky; bottom: 0; flex-wrap: nowrap; overflow-x: auto; margin-top: .6em; padding: .5em .6em; }
+    footer .sep { display: none; }
+    footer .status { display: none; }
+  }
+
   /* ---------- tooltip ---------- */
   #tip { position: fixed; pointer-events: none; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: .5em .7em; font-size: .85em; z-index: 10; display: none; box-shadow: 0 6px 20px rgba(0,8,20,.5); }
   #tip b { display: block; margin-bottom: .15em; }
@@ -265,11 +313,11 @@ const CONFIG = {
 
 <main>
   <section class="view" id="view-qr">
-    <div class="qr-big" id="qrBig"></div>
+    <a class="qr-big" id="qrBig" target="_blank" rel="noopener" title="Åpne skjemaet"></a>
     <div class="qr-text">
       <h2>Scan og si din mening</h2>
       <p>Velg hvem du er og ta stilling til <span id="stmtCount"></span> påstander. Har du et spørsmål til panelet, kan du skrive det til slutt. Svarene er anonyme.</p>
-      <div class="qr-url" id="qrUrl"></div>
+      <a class="qr-url" id="qrUrl" target="_blank" rel="noopener"></a>
       <div class="big-count" id="bigCount"></div>
     </div>
   </section>
@@ -394,6 +442,7 @@ const CONFIG = {
   $("#stmtCount").textContent = C.statements.length;
   const shownUrl = C.shortUrl || C.formUrl.replace(/^https?:\/\//, "");
   $("#qrUrl").textContent = shownUrl || "";
+  if (C.formUrl) { $("#qrUrl").href = C.formUrl; $("#qrBig").href = C.formUrl; }
 
   function renderQR() {
     const url = C.formUrl || (DEMO ? "https://ixda.org/bergen" : "");
@@ -610,6 +659,13 @@ const CONFIG = {
   }
 
   // Packs `count` dots around (cx, cy) in rows of at most `perRow`, centred on the value.
+  const narrow = () => window.innerWidth < 900;
+  let resizeTimer = null, wasNarrow = narrow();
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { if (narrow() !== wasNarrow) { wasNarrow = narrow(); render(); } }, 150);
+  });
+
   function packDots(count, cx, cy, perRow, step) {
     const out = [], rows = Math.ceil(count / perRow);
     for (let j = 0; j < count; j++) {
@@ -624,7 +680,8 @@ const CONFIG = {
   function strip(st) {
     // Dot strip: one lane per group on a shared scale axis.
     // Mean mode: one dot per group. «Alle svar» mode: one dot per answer + a tick for the mean.
-    const W = 600, padL = 40, padR = 40, top = 10, all = state.showAll;
+    // Narrower drawing on phones, so marks and labels keep a readable size when scaled down.
+    const W = narrow() ? 360 : 600, padL = narrow() ? 30 : 40, padR = padL, top = 10, all = state.showAll;
     const x = (v) => padL + (v - C.scale.min) / (C.scale.max - C.scale.min) * (W - padL - padR);
     const r = 4.2, step = 2 * r + 2;
     const perRow = Math.max(1, Math.floor((W - padL - padR) / (C.scale.max - C.scale.min) * 0.84 / step));
@@ -683,7 +740,7 @@ const CONFIG = {
 
   // Detail view, «Alle svar»: every answer as a dot in its group colour, stacked per scale step.
   function dotRow(g, gi) {
-    const W = 1000, pad = 90, r = 7, step = 2 * r + 3;
+    const W = narrow() ? 420 : 1000, pad = W * 0.09, r = 7, step = 2 * r + 3;
     const x = (v) => pad + (v - C.scale.min) / (C.scale.max - C.scale.min) * (W - 2 * pad);
     const perRow = Math.max(1, Math.floor((W - 2 * pad) / (C.scale.max - C.scale.min) * 0.8 / step));
     const rows = Math.max(1, ...g.counts.map(c => Math.ceil(c / perRow)));
